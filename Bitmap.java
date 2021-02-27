@@ -16,7 +16,7 @@ import java.util.stream.Stream;
  * - Overloads are pretty annoying especially on a large scale, find alternative way. <br>
  * - <s>Gradients should be able to scale automatically, declaring from and to each time can be a hassle.</s> Implemented <br>
  * - Uniform naming, <s> Object argument should always be called color_provider (instead of color) </s> <br>
- * - <s>Pattern should not be too powerful, outsource the fast pattern handler</s> I don't think that pattern is a god object, or too powerfull<br>
+ * - <s>Pattern should not be too powerful, outsource the fast pattern handler</s> I don't think that pattern is a god object, or too powerful<br>
  * - <b>Created pixels should be easy to delete</b> <br>
  */
 
@@ -24,6 +24,7 @@ import java.util.stream.Stream;
 /** Java class to easily create and manipulate .ppm files. <br>
  * Created by Simon Conrad © 2021 <br>
  * <a href=https://github.com/IsAvaible/Bitmap>Github</a> <br>
+ * <a href=https://imageglass.org/>Recommended Image Viewer</a>
  */
 public class Bitmap {
 
@@ -483,7 +484,10 @@ public class Bitmap {
                 case "normal":
                     return run_slot_1(x, y);
                 case "opacity":
-                    return colors.mix(run_slot_1(x, y), new Color(vertical ? canvas[canvas_height-y-(shiftPattern?1:0)][x-(shiftPattern?2:1)] : canvas[canvas_height-x-(shiftPattern?1:0)][y-(shiftPattern?2:1)]), opacity);
+                    return colors.mix(
+                            run_slot_1(x, y),
+                            new Color(vertical ? canvas[canvas_height-y+1][x-1] : canvas[canvas_height-x+1][y-1]),
+                            opacity);
                 case "grid":
                     return x * y % 2 == 0 ? run_slot_1(x, y) : run_slot_2(x, y);
                 case "stripes":
@@ -517,7 +521,7 @@ public class Bitmap {
                 case "wave":
                     return  Math.sin((double) x/y) > 0.05 ? run_slot_1(x, y) : run_slot_2(x, y);
                 case "custom":
-                    return  custom_function.test(new int[]{x, y}) ? run_slot_1(x, y) : run_slot_2(x, y);
+                    return custom_function.test(new int[]{x, y, from, to}) ? run_slot_1(x, y) : run_slot_2(x, y);
             }
 
             throw new IllegalArgumentException(pattern + " is a unknown pattern");
@@ -530,11 +534,9 @@ public class Bitmap {
             if (!Set.of("grid", "checkerboard", "stripes", "gradient", "wave", "cells", "bigcells", "dotgrid", "biggrid", "hugegrid", "superhugegrid", "flowergrid", "space", "dotlines", "custom", "opacity", "normal").contains(pattern)) {
                 throw new IllegalArgumentException(pattern + " is a unknown pattern");
             }
-            if (pattern.equals("gradient")) {
-                if (from > to) throw new IllegalArgumentException("from must be smaller than to");
-            } else if (pattern.equals("opacity")) {
-                if (opacity < 0) throw new IllegalArgumentException("opacity can't be below 0.0");
-            }
+            if (from > to) throw new IllegalArgumentException("from must be smaller than to");
+            if (from < 0) throw new IllegalArgumentException("from and to must be higher than 0");
+            if (opacity < 0) throw new IllegalArgumentException("opacity can't be below 0.0");
         }
 
         /** Parses the provided fast-pattern. <br>
@@ -586,7 +588,7 @@ public class Bitmap {
         }
 
         private Pattern (Object slot_1, Object slot_2, String pattern, boolean horizontal, boolean shiftPattern, int from, int to, boolean fastPattern, Predicate<int[]> custom_function) {
-            this(slot_1, slot_2, pattern, horizontal, shiftPattern, from, to, fastPattern, custom_function, -1.0);
+            this(slot_1, slot_2, pattern, horizontal, shiftPattern, from, to, fastPattern, custom_function, 0.0);
         }
 
         private Pattern (Object slot_1, Object slot_2, String pattern, boolean horizontal, boolean shiftPattern, int from, int to, boolean fastPattern) {
@@ -615,13 +617,16 @@ public class Bitmap {
          * @param slot_1 The first object
          * @param slot_2 The second object
          * @param custom_function Predicate that accepts a Integer Array. The first element is
-         *                        the x-coordinate, the second element is the y-coordinate. <br>
+         *                        the x-coordinate, the second element is the y-coordinate and
+         *                        the third and fourth element are the from and to variables. <br>
+         *                        When the Predicate returns true, the first slot is called, vice
+         *                        versa the second one, when it returns false. <br>
          *                        Example: <br>
          *                        {@code Predicate<int[]> custom_fun = arr -> arr[0] * arr[1] % 16 == 0;}
          *
          */
         public Pattern (Object slot_1, Object slot_2, Predicate<int[]> custom_function) {
-            this(slot_1, slot_2, "custom", true, false, 0, 0, true, custom_function);
+            this(slot_1, slot_2, "custom", false, false, 0, 0, true, custom_function);
         }
 
         /** Pattern overload for patterns that use from and to (gradient)
@@ -723,7 +728,7 @@ public class Bitmap {
         /** Merges two color providers in a custom pattern.
          * @param slot_1 The first color provider
          * @param slot_2 The second color provider
-         * @param custom_function A custom function
+         * @param custom_function A custom function <br>
          * @return the created pattern
          * @throws IllegalArgumentException if the color providers are not of type Pattern or Color
          * @see Pattern#Pattern(Object, Object, Predicate)
@@ -803,6 +808,19 @@ public class Bitmap {
         public Pattern opacity(Object slot_1, double opacity) { return new Pattern(slot_1, opacity); }
         /**Makes the current object semi-transparent*/
         public Pattern opacity(Object slot_1) { return opacity(slot_1, 0.5); }
+
+        /** Brightens up the selected color by a selected balance
+         * @param color The color
+         * @param balance A double between 0.0 (normal) and 1.0 (white)
+         * @return The brighter color
+         */
+        public Color brighten(Color color, double balance) {return  mix(color, this.white(), balance);}
+
+        /** Brightens up the selected color
+         * @param color The color
+         * @return A brighter color (50/50 mix with this.white())
+         */
+        public Color brighten(Color color) {return brighten(color, 0.5);}
 
         /** Converts the Color object into a Pattern
          * @param color the color
@@ -1000,5 +1018,3 @@ public class Bitmap {
 
 
 }
-
-
