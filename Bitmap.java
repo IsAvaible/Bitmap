@@ -3,23 +3,25 @@ import java.io.FileNotFoundException;
 import java.io.FileWriter;
 import java.io.IOException;
 import java.util.*;
+import java.util.function.Function;
 import java.util.function.Predicate;
+import java.util.stream.IntStream;
 import java.util.stream.Stream;
 
 
-/* Looking back, what should have been made different? <br>
- * - Instead of implementing the pattern via Strings (pattern-names), own Object builders for each pattern would have been clearer. <br>
+/** Looking back, what should have been made different? <br>
+ * - Instead of implementing the pattern via Strings (pattern-names), own ColorProvider builders for each pattern would have been clearer. Working on it<br>
  * For example: {@code Bitmap.Pattern grid = Bitmap.Patterns.Grid(<args>)} <br>
- * - Subclass ColorProvider instead of checking the Object argument each time. <br>
- * - The IllegalArgumentExceptions are informative, but not if one needs to catch a specific one. Own Exceptions and a more diverse use of them. <br>
+ * - <s>Subclass ColorProvider instead of checking the ColorProvider argument each time.</s> Ya <br>
+ * - <s>The IllegalArgumentExceptions are informative, but not if one needs to catch a specific one. Own Exceptions and a more diverse use of them.</s> <br>
  * - Outsource some of the code (for example the classes), to make the code less cluttered. <br>
- * - Overloads are pretty annoying especially on a large scale, find alternative way. <br>
+ * - Overloads are pretty annoying especially on a large scale, find alternative way. (.withParam()?) <br>
  * - <s>Gradients should be able to scale automatically, declaring from and to each time can be a hassle.</s> Implemented <br>
- * - Uniform naming, <s> Object argument should always be called color_provider (instead of color) </s> <br>
- * - <s>Pattern should not be too powerful, outsource the fast pattern handler</s> I don't think that pattern is a god object, or too powerful<br>
+ * - Uniform naming, <s> ColorProvider argument should always be called color_provider (instead of color_provider) </s> Done <br>
+ * - <s>Pattern should not be too powerful, outsource the fast pattern handler</s><br>
  * - <b>Created pixels should be easy to delete</b> <br>
  */
-
+class PlaceholderClassToMakeJavaDocRendererWork {}
 
 /** Java class to easily create and manipulate .ppm files. <br>
  * Created by Simon Conrad © 2021 <br>
@@ -28,13 +30,16 @@ import java.util.stream.Stream;
  */
 public class Bitmap {
 
-    public final int canvas_width; // The width of the canvas in pixel
-    public final int canvas_height; // The height of the canvas in pixel
+    public int canvas_width; // The width of the canvas in pixel
+    public int canvas_height; // The height of the canvas in pixel
     public Colors colors = new Colors(); // A object of the colors subclass
     public Shapes shapes = new Shapes(); // A object of the shapes subclass
+    public PatternBuilders patternBuilders = new PatternBuilders(); // A object of the patternBuilders subclass
+
+    public ArrayList<String> comments = new ArrayList<>();
 
     private String filename; // The filename that is used in the render method
-    private final int[][][] canvas; // A three dimensional representation of the array columns[rows[pixel[]]]
+    private int[][][] canvas; // A three dimensional representation of the array columns[rows[pixel[]]]
 
     /** Creates a new Bitmap object
      * d = default (can be left away)
@@ -48,11 +53,12 @@ public class Bitmap {
         this.canvas_height = canvas_height;
         canvas = new int[canvas_height][canvas_width][3];
         this.filename = filename;
+        this.comments.add("#" + filename);
         if (render_on_init) render(true);
     }
 
     /**@see #Bitmap(int, int, String, boolean) **/
-    public Bitmap(int canvas_width, int canvas_height, String filename) { this(canvas_width, canvas_height, filename, false); }
+    public Bitmap(int canvas_width, int canvas_height, String filename) { this(canvas_width, canvas_height, filename, true); }
     /**@see #Bitmap(int, int, String, boolean) **/
     public Bitmap(int canvas_width, int canvas_height) { this(canvas_width, canvas_height, true); }
     /**@see #Bitmap(int, int, String, boolean) **/
@@ -62,9 +68,9 @@ public class Bitmap {
         return canvas;
     }
 
-    /** Validates the syntax of a color
-     * @param color The color that should be validated
-     * @throws IllegalArgumentException when the color doesn't match criteria
+    /** Validates the syntax of a color_provider
+     * @param color The color_provider that should be validated
+     * @throws IllegalArgumentException when the color_provider doesn't match criteria
      */
     private void validateColor(Color color) {
         if (color.color.length != 3) {
@@ -82,16 +88,16 @@ public class Bitmap {
     /** Changes exactly one pixel at a specified point
      * @param x coordinate of the addressed pixel
      * @param y coordinate of the addressed pixel
-     * @param color_provider a object of type Color or Pattern that provides the color
+     * @param color_provider a object of type Color or Pattern that provides the color_provider
      * @throws IllegalArgumentException when the color_provider isn't a Pattern or a Color
      * @throws Exceptions.PixelOutOfBoundsException when the accessed pixel is outside the canvas
      */
-    private void changePixel(int x, int y, Object color_provider)  {
+    private void changePixel(int x, int y, ColorProvider color_provider)  {
         if (x < 1 || x > canvas_width) {
             throw new Exceptions.PixelOutOfBoundsException("x is out of bounds");
         } else if (y < 1 || y > canvas_height) {
             throw new Exceptions.PixelOutOfBoundsException("y is out of bounds");
-        } else {}
+        }
 
         if (color_provider.getClass() == Color.class) {
             canvas[canvas_height -y][x-1] = ((Color) color_provider).color;
@@ -102,22 +108,22 @@ public class Bitmap {
         }
     }
 
-    /**@see #changePixel(int, int, Object) **/
+    /**@see #changePixel(int, int, ColorProvider) **/
     public void changePixel(int x, int y, Color color) {
-        changePixel(x, y, (Object) color);
+        changePixel(x, y, (ColorProvider) color);
     }
 
-    /**@see #changePixel(int, int, Object) **/
+    /**@see #changePixel(int, int, ColorProvider) **/
     public void changePixel(int x, int y, Pattern pattern) {
-        changePixel(x, y, (Object) pattern);
+        changePixel(x, y, (ColorProvider) pattern);
     }
 
 
-    /** Validate if the type of the object is correct
-     * @param obj Object to validate. Must be either Color or Pattern.
-     * @throws IllegalArgumentException if the object isn't a color or a pattern
+    /** Validate if the type of the object is correct # Deprecate (was replaced by introducing abstract class ColorProvider)
+     * @param obj ColorProvider to validate. Must be either Color or Pattern.
+     * @throws IllegalArgumentException if the object isn't a color_provider or a pattern
      */
-    private void checkType(Object obj) {
+    private void checkType(ColorProvider obj) {
         if (obj.getClass() != Color.class && obj.getClass() != Pattern.class) {
             throw new IllegalArgumentException("color_provider can only be a Pattern or a Color");
         }
@@ -128,23 +134,22 @@ public class Bitmap {
      * @param y_p1 The y-coordinate of the first point
      * @param x_p2 The x-coordinate of the second point
      * @param y_p2 The y-coordinate of the second point
-     * @param color_provider The color provider, has to be of type Color or Pattern
+     * @param color_provider The color_provider provider, has to be of type Color or Pattern
      * @param outline The outline object
-     * @see Outline#Outline(boolean, int, Object) 
+     * @see Outline#Outline(boolean, int, ColorProvider)
      * @throws IllegalArgumentException if the color_provider isn't of type Color or pattern
      */
-    public void fillArea(int x_p1, int y_p1, int x_p2, int y_p2, Object color_provider, Outline outline) {
+    public void fillArea(int x_p1, int y_p1, int x_p2, int y_p2, ColorProvider color_provider, Outline outline) {
         int min_x, max_x, min_y, max_y;
         min_x = Math.min(x_p1, x_p2); max_x = Math.max(x_p1, x_p2);
         min_y = Math.min(y_p1, y_p2); max_y = Math.max(y_p1, y_p2);
 
-        checkType(color_provider);
         if (color_provider.getClass() == Pattern.class) {
             setAutoPattern(min_x, max_x, min_y, max_y, color_provider, false);
         }
 
         if (outline.active) {
-            border(min_x, min_y, max_x, max_y, outline.thickness, outline.color);
+            border(min_x, min_y, max_x, max_y, outline.thickness, outline.color_provider);
         }
 
         for (int y = min_y; y <= max_y; y++) {
@@ -158,10 +163,10 @@ public class Bitmap {
      * @param x_from The first x-coordinate
      * @param x_to The second x-coordinate
      * @param y_pos The y-coordinate of the line
-     * @param color_provider The color provider, has to be either Color or Pattern
+     * @param color_provider The color_provider provider, has to be either Color or Pattern
      * @param thickness The thickness of the line (upwards)
      */
-    public void lineH(int x_from, int x_to, int y_pos, Object color_provider, int thickness) {
+    public void lineH(int x_from, int x_to, int y_pos, ColorProvider color_provider, int thickness) {
         fillArea(x_from, y_pos, x_to, y_pos+thickness-1, color_provider);
     }
 
@@ -169,10 +174,10 @@ public class Bitmap {
      * @param y_from The first y-coordinate
      * @param y_to The second y-coordinate
      * @param x_pos The x-coordinate of the line
-     * @param color_provider The color provider, has to be either Color or Pattern
+     * @param color_provider The color_provider provider, has to be either Color or Pattern
      * @param thickness The thickness of the line (to the right)
      */
-    public void lineV(int y_from, int y_to, int x_pos, Object color_provider, int thickness) {
+    public void lineV(int y_from, int y_to, int x_pos, ColorProvider color_provider, int thickness) {
         fillArea(x_pos, y_from, x_pos+thickness-1,  y_to, color_provider);
     }
 
@@ -189,10 +194,9 @@ public class Bitmap {
      * @param x_p2 The x-coordinate of the second point
      * @param y_p2 The y-coordinate of the second point
      * @param thickness The thickness of the border (outwards)
-     * @param color_provider The color provider, has to be either Color or Pattern
+     * @param color_provider The color_provider provider, has to be either Color or Pattern
      */
-    public void border (int x_p1, int y_p1, int x_p2, int y_p2, int thickness, Object color_provider) {
-        checkType(color_provider);
+    public void border (int x_p1, int y_p1, int x_p2, int y_p2, int thickness, ColorProvider color_provider) {
 
         int min_x, max_x, min_y, max_y;
         min_x = Math.min(x_p1, x_p2); max_x = Math.max(x_p1, x_p2);
@@ -210,9 +214,9 @@ public class Bitmap {
 
     /**
      * @param color_provider If cp is a Color, the function is more efficient than fillArea(). Can also be set to a Pattern.
-     * @throws IllegalArgumentException if the color provider is not of type Color or Pattern
+     * @throws IllegalArgumentException if the color_provider provider is not of type Color or Pattern
      */
-    public void fillWin(Object color_provider) {
+    public void fillWin(ColorProvider color_provider) {
         if (color_provider.getClass() == Color.class) {
             validateColor((Color) color_provider);
             for (int[][] row : canvas) {
@@ -231,11 +235,11 @@ public class Bitmap {
      * @param to_x To when the pattern is horizontal
      * @param from_y From when the pattern is vertical
      * @param to_y To when the pattern is vertical
-     * @param color_provider The color provider, has to be either Color or Pattern
+     * @param color_provider The color_provider provider, has to be either Color or Pattern
      * @param lockIn Whether the patterns should be set to auto = false upon assignment
      * @return Pattern[] lockedPatterns : A list of all patterns that were locked during execution
      */
-    private Pattern[] setAutoPattern(int from_x, int to_x, int from_y, int to_y, Object color_provider, boolean lockIn) {
+    private Pattern[] setAutoPattern(int from_x, int to_x, int from_y, int to_y, ColorProvider color_provider, boolean lockIn) {
         // Growable list storing the locked patterns
         ArrayList<Pattern> lockedPatterns = new ArrayList<>();
         if (color_provider.getClass() == Color.class) {
@@ -279,11 +283,19 @@ public class Bitmap {
      */
     public void render(String filename, int[][][] custom_win, boolean report_path) {
         this.filename = filename;
-        String full_filepath = System.getProperty("user.dir") + "/" + filename;
+        String format;
+        String full_filepath = System.getProperty("user.dir") + "/" + filename;;
+        try {
+            format = filename.split("\\.")[1];
+        } catch (ArrayIndexOutOfBoundsException e) {
+            format = "ppm";
+            full_filepath = System.getProperty("user.dir") + "/" + filename + ".ppm";;
+        }
 
         try {
             // Creating a new File object
             File bitmap = new File(full_filepath);
+
             // Checking if the file exists
             if (!bitmap.exists()) {
                 // Creating a new file
@@ -293,26 +305,61 @@ public class Bitmap {
             }
             // Creating a new file writer
             FileWriter render_obj = new FileWriter(full_filepath);
-
-            // Checking whether the file in the right format
-            if (!filename.split("\\.")[1].equals("ppm")) {
-                throw new IllegalArgumentException("file is not of the ppm file format");
-            }
-
             // Better way to do build a string in a for loop
             StringBuilder converted_win = new StringBuilder();
-            // Adding the header
-            converted_win.append(String.format("P3\n#%s\n%s %s\n255\n", filename, canvas_width, canvas_height));
 
-            // Building the file content
-            for (int[][] row : custom_win) {
-                for (int[] pixel : row) {
-                    for (int color_information : pixel) {
-                        converted_win.append(color_information).append(" ");
+
+
+            // Checking whether the file in the right format
+            if (format.equals("ppm")) {
+                // Adding the header
+                converted_win.append(String.format("P3\n%s\n%s %s\n255\n", String.join("\n#", this.comments), canvas_width, canvas_height));
+
+                // Building the file content
+                for (int[][] row : custom_win) {
+                    for (int[] pixel : row) {
+                        for (int color_information : pixel) {
+                            converted_win.append(color_information).append(" ");
+                        }
                     }
+                    converted_win.append("\n");
                 }
-                converted_win.append("\n");
+            } else if (format.equals("pbm")) {
+                // Adding the header
+                converted_win.append(String.format("P1\n#%s\n%s %s\n", filename, canvas_width, canvas_height));
+
+                // Building the file content
+                for (int[][] row : custom_win) {
+                    for (int[] pixel : row) {
+                        int sum = 0;
+                        for (int color_information : pixel) {
+                            sum += color_information;
+                        }
+                        converted_win.append(sum > 255*3 / 2 ? 0 : 1).append(" ");
+                    }
+                    converted_win.append("\n");
+                }
+            } else if (format.equals("pgm")) {
+                // Adding the header
+                converted_win.append(String.format("P2\n#%s\n%s %s\n256\n", filename, canvas_width, canvas_height));
+
+                // Building the file content
+                for (int[][] row : custom_win) {
+                    for (int[] pixel : row) {
+                        int sum = 0;
+                        for (int color_information : pixel) {
+                            sum += color_information;
+                        }
+                        converted_win.append(sum/3).append(" ");
+                    }
+                    converted_win.append("\n");
+                }
             }
+            else {
+                throw new IllegalArgumentException(String.format("file format \"%s\" is not supported", format));
+            }
+
+
 
             if (report_path) { // Output the full filepath
                 System.out.println("Writing object to: " + full_filepath);
@@ -350,12 +397,106 @@ public class Bitmap {
     /**@see #render(String, int[][][], boolean) **/
     public void render(boolean report_path) {render(filename, canvas, report_path);}
 
-    // Stores a color in the RGB color format
-    public class Color {
+    public Object[][] readFromFile(String filePath, boolean overwriteSettings) {
+        if (!filePath.contains(".") || !filePath.split("\\.")[1].equals("ppm")) {throw new IllegalArgumentException("provided file isn't in the ppm format");}
+
+        ArrayList<String> comments = new ArrayList<>();
+        Integer width = null; Integer height = null;
+        Integer maxVal = null;
+
+        boolean contentReached = false;
+        ArrayList<String> contentString = new ArrayList<>();
+        ArrayList<String> growable_lines = new ArrayList<>();
+
+        File file = new File(filePath);
+        try {
+            Scanner reader = new Scanner(file);
+            while (reader.hasNextLine()) {
+                growable_lines.add(reader.nextLine());
+            }
+        } catch (Exception ignored) {
+            throw new IllegalArgumentException("file does not exist");
+        }
+
+
+        String[] lines = new String[growable_lines.size()];
+        lines = growable_lines.toArray(lines);
+
+        for (int index = 1; index < lines.length; index++) {
+            String line = lines[index];
+            if (line.startsWith("#")) { // Comment line
+                comments.add(line.substring(1, line.length()));
+            } else if (!contentReached) {
+                var lineSplit = line.split(" ");
+                if (lineSplit.length > 1)
+                    if (width == null && height == null) { // Width and height line
+
+                        if (lineSplit.length != 2) { throw new IllegalArgumentException("the provided file does not contain width and height in the file header"); }
+
+                        width = Integer.parseInt(lineSplit[0]);
+                        height = Integer.parseInt(lineSplit[1]);
+
+                    } else {
+                        throw new IllegalArgumentException(("the provided file does not contain a max values in the file header"));
+                    }
+                else {
+                    try { // Max Val line
+                        maxVal = Integer.parseInt(line);
+                        contentReached = true;
+                    } catch (Exception e) {
+                        throw new IllegalArgumentException(String.format("the line which was expected to be the max value (\"%s\") could not be cast to int", line));
+                    }
+
+                }
+            } else { // Content lines
+                contentString.add(line);
+            }
+        }
+        Function<String, Integer> toInt = str -> Integer.valueOf(str);
+        //ArrayList<String[]> content = _partition((_partition(Arrays.stream(String.join(" ", contentString).trim().split(" +")).map(toInt).toArray(), 3)), width);
+
+
+        Integer[] content_as_color_information = Arrays.stream(String.join(" ", contentString).trim().split(" +")).map(toInt).toArray(Integer[]::new);
+        Integer[][] content_as_pixels = new Integer[content_as_color_information.length / 3][3];
+        for (int i = 0; i < content_as_pixels.length; i += 1) {
+            content_as_pixels[i] = Arrays.copyOfRange(content_as_color_information, i*3, i*3+3);
+        }
+        Integer[][][] content_as_rows = new Integer[height][content_as_pixels.length / width][3];
+        for (int i = 0; i < height; i += 1) {
+            content_as_rows[i] = Arrays.copyOfRange(content_as_pixels, i*width, i*width+width);
+        }
+
+        // System.out.println(Arrays.toString(new Object[]{width, height, maxVal, comments}));
+        // System.out.println(Arrays.deepToString(content_as_rows));
+
+        // Convert from Integer[][][] to int[][][]
+        int[][][] content = new int[height][content_as_pixels.length / width][3];
+        for (int row = 0; row < height; row++) {
+            for (int pixel = 0; pixel < content[0].length; pixel++) {
+                for (int color_information = 0; color_information < 3; color_information++) {
+                    content[row][pixel][color_information] = content_as_rows[row][pixel][color_information];
+                }
+            }
+        }
+
+        if (overwriteSettings) {
+            this.canvas_width = width;
+            this.canvas_height = height;
+            this.comments.addAll(comments);
+            this.canvas = content;
+        }
+
+        // [int, int, int, String[]], int[][][]]
+        return new Object[][]{{width, height, maxVal, comments}, content_as_rows};
+
+    }
+
+    // Stores a color_provider in the RGB color_provider format
+    public class Color extends ColorProvider{
         int[] color;
 
         /**
-         * @param color a int[] representation of the RGB-color
+         * @param color a int[] representation of the RGB-color_provider
          * @param alpha (brightness) between 0.0 (darkest) and 1.0 (normal)
          */
         Color (int[] color, double alpha) {
@@ -370,7 +511,7 @@ public class Bitmap {
          * @param alpha (brightness) between 0.0 (darkest) and 1.0 (brightest)
          * @return this
          */
-        public Object setAlpha(double alpha) {
+        public ColorProvider setAlpha(double alpha) {
             int[] col = this.color.clone();
 
             if (alpha < 0.0 && alpha > 1.0) {
@@ -393,7 +534,7 @@ public class Bitmap {
         public Color(int r, int g, int b, double alpha) { this(new int[]{r, g, b}, alpha); }
 
         /**
-         * @param color a string representation of the color in the format "r g b"
+         * @param color a string representation of the color_provider in the format "r g b"
          * @param alpha (brightness) between 0.0 (darkest) and 1.0 (brightest)
          */
         Color (String color, double alpha) { this(Stream.of(color.split(" ")).mapToInt(Integer::parseInt).toArray(), alpha); }
@@ -407,12 +548,12 @@ public class Bitmap {
     }
 
     /** Class to create patterns.
-     * Patterns are a mix out of two color providers.
+     * Patterns are a mix out of two color_provider providers.
      */
-    public class Pattern {
+    public class Pattern extends ColorProvider{
 
-        private Object slot_1;
-        private Object slot_2;
+        private ColorProvider slot_1;
+        private ColorProvider slot_2;
         private final String pattern;
 
         private boolean horizontal;
@@ -428,15 +569,14 @@ public class Bitmap {
 
         double opacity;
 
-        private Pattern (Object slot_1, Object slot_2, String pattern, boolean horizontal, boolean shiftPattern, int from, int to, boolean fastPattern, Predicate<int[]> custom_function, double opacity) {
-            checkType(slot_1);
-            checkType(slot_2);
+        private Pattern (ColorProvider slot_1, ColorProvider slot_2, String pattern, boolean horizontal, boolean shiftPattern, int from, int to, boolean fastPattern, Predicate<int[]> custom_function, double opacity, boolean auto) {
             this.slot_1 = slot_1; this.slot_2 = slot_2;
 
             this.horizontal = horizontal; this.vertical = !horizontal;
             this.shiftPattern = shiftPattern;
             this.from = from;
             this.to = to;
+            this.auto = auto;
 
             this.custom_function = custom_function;
             this.opacity = opacity;
@@ -445,31 +585,30 @@ public class Bitmap {
             validatePattern(pattern);
 
             this.pattern = pattern;
-
         }
 
-        /** Calls the first slot recursively or returns the color directly
+        /** Calls the first slot recursively or returns the color_provider directly
          * @param x the x-coordinate
          * @param y the y-coordinate
-         * @return the color that is returned by the recursive call
+         * @return the color_provider that is returned by the recursive call
          */
         public Color run_slot_1(int x, int y) {
             return slot_1.getClass() == Color.class ? (Color) slot_1 : ((Pattern) slot_1).run(x, y);
         }
 
-        /** Calls the second slot recursively or returns the color directly
+        /** Calls the second slot recursively or returns the color_provider directly
          * @param x the x-coordinate
          * @param y the y-coordinate
-         * @return the color that is returned by the recursive call
+         * @return the color_provider that is returned by the recursive call
          */
         public Color run_slot_2(int x, int y) {
             return slot_2.getClass() == Color.class ? (Color) slot_2 : ((Pattern) slot_2).run(x, y);
         }
 
-        public void setSlot_1(Object slot_1) { checkType(slot_1); this.slot_1 = slot_1; }
-        public void setSlot_2(Object slot_2) { checkType(slot_2); this.slot_2 = slot_2; }
-        public Object getSlot_1() { return slot_1; }
-        public Object getSlot_2() { return slot_2; }
+        public void setSlot_1(ColorProvider slot_1) { this.slot_1 = slot_1; }
+        public void setSlot_2(ColorProvider slot_2) { this.slot_2 = slot_2; }
+        public ColorProvider getSlot_1() { return slot_1; }
+        public ColorProvider getSlot_2() { return slot_2; }
 
         /** Calculates the slot that is returned
          * @param x the x-coordinate
@@ -587,11 +726,19 @@ public class Bitmap {
             this.horizontal = horizontal; this.vertical = !horizontal;
         }
 
-        private Pattern (Object slot_1, Object slot_2, String pattern, boolean horizontal, boolean shiftPattern, int from, int to, boolean fastPattern, Predicate<int[]> custom_function) {
+        public String getPattern() {
+            return pattern;
+        }
+
+        private Pattern (ColorProvider slot_1, ColorProvider slot_2, String pattern, boolean horizontal, boolean shiftPattern, int from, int to, boolean fastPattern, Predicate<int[]> custom_function, double opacity) {
+            this(slot_1, slot_2, pattern, horizontal, shiftPattern, from, to, fastPattern, custom_function, 0.0, false);
+        }
+
+        private Pattern (ColorProvider slot_1, ColorProvider slot_2, String pattern, boolean horizontal, boolean shiftPattern, int from, int to, boolean fastPattern, Predicate<int[]> custom_function) {
             this(slot_1, slot_2, pattern, horizontal, shiftPattern, from, to, fastPattern, custom_function, 0.0);
         }
 
-        private Pattern (Object slot_1, Object slot_2, String pattern, boolean horizontal, boolean shiftPattern, int from, int to, boolean fastPattern) {
+        private Pattern (ColorProvider slot_1, ColorProvider slot_2, String pattern, boolean horizontal, boolean shiftPattern, int from, int to, boolean fastPattern) {
             this(slot_1, slot_2, pattern, horizontal, shiftPattern, from, to, fastPattern, null);
         }
 
@@ -601,15 +748,15 @@ public class Bitmap {
          * @param fast_pattern To define for example a fast gradient: "gradient{H/V}={from : int}-{to : int}", for example {@code "gradientH=100-200"}
          * @see #evaluateFastPattern(String)
          */
-        public Pattern (Object slot_1, Object slot_2, String fast_pattern) {
+        public Pattern (ColorProvider slot_1, ColorProvider slot_2, String fast_pattern) {
             this(slot_1, slot_2, fast_pattern, true, false, 0, 0, true);
         }
 
         /** Opacity pattern
-         * @param slot_1 The color provider
-         * @param opacity The opacity of the color provider (1.0 = cover, 0.0 = invisible)
+         * @param slot_1 The color_provider provider
+         * @param opacity The opacity of the color_provider provider (1.0 = cover, 0.0 = invisible)
          */
-        public Pattern(Object slot_1, double opacity) {
+        public Pattern(ColorProvider slot_1, double opacity) {
             this(slot_1, colors.white(), "opacity", true, false, 0, 0, false, null, opacity);
         }
 
@@ -625,7 +772,7 @@ public class Bitmap {
          *                        {@code Predicate<int[]> custom_fun = arr -> arr[0] * arr[1] % 16 == 0;}
          *
          */
-        public Pattern (Object slot_1, Object slot_2, Predicate<int[]> custom_function) {
+        public Pattern (ColorProvider slot_1, ColorProvider slot_2, Predicate<int[]> custom_function) {
             this(slot_1, slot_2, "custom", false, false, 0, 0, true, custom_function);
         }
 
@@ -637,8 +784,12 @@ public class Bitmap {
          * @param from The first coordinate (int)
          * @param to The second coordinate (int)
          */
-        public Pattern (Object slot_1, Object slot_2, String pattern, boolean horizontal, int from, int to) {
-            this(slot_1, slot_2, pattern, horizontal, false, from, to, false);
+        public Pattern (ColorProvider slot_1, ColorProvider slot_2, String pattern, boolean horizontal, int from, int to, boolean auto) {
+            this(slot_1, slot_2, pattern, horizontal, false, from, to, true, null, 1.0, auto);
+        }
+
+        public Pattern (ColorProvider slot_1, ColorProvider slot_2, String pattern, boolean horizontal, int from, int to) {
+            this(slot_1, slot_2, pattern, horizontal, false, from, to, true);
         }
 
         /** Standard pattern
@@ -648,14 +799,79 @@ public class Bitmap {
          * @param horizontal Whether the pattern should be horizontal or vertical
          * @param shiftPattern Whether the pattern should be shifted by one pixel to the right
          */
-        public Pattern (Object slot_1, Object slot_2, String pattern, boolean horizontal, boolean shiftPattern) {
+        public Pattern (ColorProvider slot_1, ColorProvider slot_2, String pattern, boolean horizontal, boolean shiftPattern) {
             this(slot_1, slot_2, pattern, horizontal, shiftPattern, 0, 0, false);
         }
-        /**@see #Pattern(Object, Object, String, boolean, boolean) **/
-        public Pattern(Object slot_1, Object slot_2, String pattern, boolean horizontal) {
+        /**@see #Pattern(ColorProvider, ColorProvider, String, boolean, boolean) **/
+        public Pattern(ColorProvider slot_1, ColorProvider slot_2, String pattern, boolean horizontal) {
             this(slot_1, slot_2, pattern, horizontal, false);
         }
 
+        public Pattern(PatternBuilder patternBuilder) {
+            this(patternBuilder.slot_1, patternBuilder.slot_2, patternBuilder.pattern, patternBuilder.horizontal, patternBuilder.shiftPattern, patternBuilder.from, patternBuilder.to, patternBuilder.isFastPattern, patternBuilder.custom_function, patternBuilder.opacity, patternBuilder.auto);
+        }
+
+    }
+
+    public class PatternBuilder {
+        ColorProvider slot_1;
+        ColorProvider slot_2;
+        private final String pattern;
+
+        boolean horizontal = true;
+        boolean shiftPattern = false;
+
+        Predicate<int[]> custom_function;
+
+        int from = 0;
+        int to = 0;
+        boolean auto = true;
+
+        boolean isFastPattern = false;
+
+        double opacity = 1.0;
+
+        // PatternBuilder should only be created through the PatternBuilders class
+        private PatternBuilder(ColorProvider slot_1, ColorProvider slot_2, String pattern) {
+            this.slot_1 = slot_1; this.slot_2 = slot_2;
+            this.pattern = pattern;
+        }
+        private PatternBuilder(ColorProvider slot_1, String pattern) {
+            this(slot_1, colors.white(), pattern);
+        }
+
+        public PatternBuilder withHorizontal(boolean horizontal) {
+            this.horizontal = horizontal;
+            return this;
+        }
+        public PatternBuilder withShiftPattern(boolean shiftPattern) {
+            this.shiftPattern = shiftPattern;
+            return this;
+        }
+        public PatternBuilder withFromAndTo(int from, int to) {
+            this.from = from; this.to = to;
+            this.auto = false;
+            return this;
+        }
+        public PatternBuilder withCustomFunction(Predicate<int[]> custom_function) {
+            this.custom_function = custom_function;
+            return this;
+        }
+        public PatternBuilder withOpacity(double opacity) {
+            this.opacity = opacity;
+            return this;
+        }
+        public PatternBuilder withAuto(boolean auto) {
+            this.auto = auto;
+            return this;
+        }
+        public PatternBuilder withIsFastPattern(boolean isFastPattern) {
+            this.isFastPattern = isFastPattern;
+            return this;
+        }
+        public Pattern build() {
+            return new Pattern(this);
+        }
     }
 
     /**
@@ -686,7 +902,7 @@ public class Bitmap {
         public final Color grey() { return new Color(new int[]{140, 140, 140});}
         public final Color dark_grey() { return new Color(new int[]{70, 70, 70});}
 
-        /**@return a transparent color*/
+        /**@return a transparent color_provider*/
         public final Pattern transparent() {return new Pattern(white(), 1.0);}
 
         /**
@@ -700,9 +916,9 @@ public class Bitmap {
             };
         }
 
-        /** Returns a random color
-         * @param true_random Whether the color should be selected completely random or from a predefined list.
-         * @return the random color
+        /** Returns a random color_provider
+         * @param true_random Whether the color_provider should be selected completely random or from a predefined list.
+         * @return the random color_provider
          */
         public Color random (boolean true_random) {
             Random ran = new Random();
@@ -718,28 +934,22 @@ public class Bitmap {
 
 
         /**
-         * @return a random predefined color
+         * @return a random predefined color_provider
          */
         public Color random() {
             return random(false);
         }
 
 
-        /** Merges two color providers in a custom pattern.
-         * @param slot_1 The first color provider
-         * @param slot_2 The second color provider
+        /** Merges two color_provider providers in a custom pattern.
+         * @param slot_1 The first color_provider provider
+         * @param slot_2 The second color_provider provider
          * @param custom_function A custom function <br>
          * @return the created pattern
-         * @throws IllegalArgumentException if the color providers are not of type Pattern or Color
-         * @see Pattern#Pattern(Object, Object, Predicate)
+         * @throws IllegalArgumentException if the color_provider providers are not of type Pattern or Color
+         * @see Pattern#Pattern(ColorProvider, ColorProvider, Predicate)
          */
-        public Pattern merge(Object slot_1, Object slot_2, Predicate<int[]> custom_function) {
-            try {
-                checkType(slot_1);
-                checkType(slot_2);
-            } catch (IllegalArgumentException e) {
-                throw new IllegalArgumentException("merged objects must either be of class Color or Pattern");
-            }
+        public Pattern merge(ColorProvider slot_1, ColorProvider slot_2, Predicate<int[]> custom_function) {
             if (custom_function == null) {
                 throw new IllegalArgumentException("custom_function needs to be set when using the \"custom\" fast pattern");
             } else {
@@ -749,27 +959,21 @@ public class Bitmap {
 
         }
 
-        /** Merges the two color providers in a custom fast pattern
-         * @param slot_1 The first color provider
-         * @param slot_2 The second color provider
+        /** Merges the two color_provider providers in a custom fast pattern
+         * @param slot_1 The first color_provider provider
+         * @param slot_2 The second color_provider provider
          * @param fast_pattern The fast pattern
          * @return the created pattern
          * @throws IllegalArgumentException
          * @see Pattern#evaluateFastPattern(String)
          */
-        public Pattern merge(Object slot_1, Object slot_2, String fast_pattern) {
-            try {
-                checkType(slot_1);
-                checkType(slot_2);
-            } catch (IllegalArgumentException e) {
-                throw new IllegalArgumentException("merged objects must either be of class Color or Pattern");
-            }
+        public Pattern merge(ColorProvider slot_1, ColorProvider slot_2, String fast_pattern) {
             return new Pattern(slot_1, slot_2, fast_pattern);
         }
 
         /** Mixes two colors with a specified balance
-         * @param color_1 The first integer array with color information in rgb
-         * @param color_2 The second integer array with color information in rgb
+         * @param color_1 The first integer array with color_provider information in rgb
+         * @param color_2 The second integer array with color_provider information in rgb
          * @param balance a double between 0.0 (color_1) and 1.0 (color_2) representing the balance
          * @return a new Color object
          * @throws IllegalArgumentException if the balance is out of bounds
@@ -787,8 +991,8 @@ public class Bitmap {
         }
 
         /**
-         * @param color_1 The first color
-         * @param color_2 The second color
+         * @param color_1 The first color_provider
+         * @param color_2 The second color_provider
          * @param balance a double between 0.0 (color_1) and 1.0 (color_2) representing the balance
          * @return a new Color object
          * @throws IllegalArgumentException if the balance is out of bounds
@@ -803,27 +1007,27 @@ public class Bitmap {
         public Color mix(Color color_1, Color color_2) { return mix(color_1, color_2, 0.5); }
 
         /** Adds a transparency to the object
-         * @see Pattern#Pattern(Object, double)
+         * @see Pattern#Pattern(ColorProvider, double)
          */
-        public Pattern opacity(Object slot_1, double opacity) { return new Pattern(slot_1, opacity); }
+        public Pattern opacity(ColorProvider slot_1, double opacity) { return new Pattern(slot_1, opacity); }
         /**Makes the current object semi-transparent*/
-        public Pattern opacity(Object slot_1) { return opacity(slot_1, 0.5); }
+        public Pattern opacity(ColorProvider slot_1) { return opacity(slot_1, 0.5); }
 
-        /** Brightens up the selected color by a selected balance
-         * @param color The color
+        /** Brightens up the selected color_provider by a selected balance
+         * @param color The color_provider
          * @param balance A double between 0.0 (normal) and 1.0 (white)
-         * @return The brighter color
+         * @return The brighter color_provider
          */
         public Color brighten(Color color, double balance) {return  mix(color, this.white(), balance);}
 
-        /** Brightens up the selected color
-         * @param color The color
-         * @return A brighter color (50/50 mix with this.white())
+        /** Brightens up the selected color_provider
+         * @param color The color_provider
+         * @return A brighter color_provider (50/50 mix with this.white())
          */
         public Color brighten(Color color) {return brighten(color, 0.5);}
 
         /** Converts the Color object into a Pattern
-         * @param color the color
+         * @param color the color_provider
          * @return the created "normal" pattern
          */
         public Pattern patternFromColor(Color color) { return new Pattern(color, colors.black(), "normal");}
@@ -831,36 +1035,74 @@ public class Bitmap {
 
 
     /**
+     * Stores methods for easier creation of PatternBuilders. <br>
+     * To get a pattern from one of these methods, call .build()
+     */
+    public class PatternBuilders {
+
+        public PatternBuilder opacity(ColorProvider slot_1) { return new PatternBuilder(slot_1, "opacity"); }
+        public PatternBuilder gradient(ColorProvider slot_1, ColorProvider slot_2) { return new PatternBuilder(slot_1, slot_2, "gradient"); }
+        public PatternBuilder custom(ColorProvider slot_1, ColorProvider slot_2, Predicate<int[]> custom_function) { return new PatternBuilder(slot_1, slot_2, "custom").withCustomFunction(custom_function); }
+        public PatternBuilder fastPattern(ColorProvider slot_1, ColorProvider slot_2, String fast_pattern) {return new PatternBuilder(slot_1, slot_2, fast_pattern).withIsFastPattern(true); }
+
+        public PatternBuilder gridVariants(ColorProvider slot_1, ColorProvider slot_2, int factor) { return new PatternBuilder(slot_1, slot_2, "custom").withCustomFunction(arr ->  arr[0] * arr[1] % (factor) == 0); }
+        public PatternBuilder cellsVariants(ColorProvider slot_1, ColorProvider slot_2, int factor) { return new PatternBuilder(slot_1, slot_2, "custom").withCustomFunction(arr ->  (int) (Math.PI * arr[0] * arr[1]) % (factor) == 0); }
+        public PatternBuilder circleBorderVariants(ColorProvider slot_1, ColorProvider slot_2, int spread) { return new PatternBuilder(slot_1, slot_2, "custom").withCustomFunction(arr ->  (int) (Math.sqrt(arr[0] * arr[1])) % spread == 0); }
+
+        public PatternBuilder aslantStripes(ColorProvider slot_1, ColorProvider slot_2, int spread) { return new PatternBuilder(slot_1, slot_2, "custom").withCustomFunction(arr ->  (arr[0] + arr[1]) % (spread) == 0); }
+
+        public PatternBuilder normal(ColorProvider slot_1) { return new PatternBuilder(slot_1, "normal"); }
+        public PatternBuilder grid(ColorProvider slot_1, ColorProvider slot_2) { return new PatternBuilder(slot_1, slot_2, "grid"); }
+        public PatternBuilder stripes(ColorProvider slot_1, ColorProvider slot_2) { return new PatternBuilder(slot_1, slot_2, "stripes"); }
+        public PatternBuilder checkerboard(ColorProvider slot_1, ColorProvider slot_2) { return new PatternBuilder(slot_1, slot_2, "checkerboard"); }
+        public PatternBuilder cells(ColorProvider slot_1, ColorProvider slot_2) { return new PatternBuilder(slot_1, slot_2, "cells"); }
+        public PatternBuilder bigcells(ColorProvider slot_1, ColorProvider slot_2) { return new PatternBuilder(slot_1, slot_2, "bigcells"); }
+        public PatternBuilder space(ColorProvider slot_1, ColorProvider slot_2) { return new PatternBuilder(slot_1, slot_2, "space"); }
+        public PatternBuilder dotgrid(ColorProvider slot_1, ColorProvider slot_2) { return new PatternBuilder(slot_1, slot_2, "dotgrid"); }
+        public PatternBuilder biggrid(ColorProvider slot_1, ColorProvider slot_2) { return new PatternBuilder(slot_1, slot_2, "biggrid"); }
+        public PatternBuilder hugegrid(ColorProvider slot_1, ColorProvider slot_2) { return new PatternBuilder(slot_1, slot_2, "hugegrid"); }
+        public PatternBuilder superhugegrid(ColorProvider slot_1, ColorProvider slot_2) { return new PatternBuilder(slot_1, slot_2, "superhugegrid"); }
+        public PatternBuilder flowergrid(ColorProvider slot_1, ColorProvider slot_2) { return new PatternBuilder(slot_1, slot_2, "flowergrid"); }
+        public PatternBuilder dotlines(ColorProvider slot_1, ColorProvider slot_2) { return new PatternBuilder(slot_1, slot_2, "dotlines"); }
+        public PatternBuilder wave(ColorProvider slot_1, ColorProvider slot_2) { return new PatternBuilder(slot_1, slot_2, "wave"); }
+
+
+    }
+
+
+    /**
      * Class to store and to create outline elements
      */
     public class Outline {
-        boolean active; int thickness; Object color;
+        boolean active; int thickness; ColorProvider color_provider;
 
         /**
          * @param active Whether the outline is active or not
          * @param thickness The thickness of the outline in pixels
-         * @param color The color of the outline (Pattern / Color)
+         * @param color_provider The color_provider of the outline (Pattern / Color)
          */
-        public Outline (boolean active, int thickness, Object color) {
+        public Outline (boolean active, int thickness, ColorProvider color_provider) {
             this.active = active;
             this.thickness = thickness;
-            checkType(color);
-            this.color = color;
+            this.color_provider = color_provider;
         }
-        /**@see #Outline(boolean, int, Object) **/
+        /**@see #Outline(boolean, int, ColorProvider) **/
         public Outline (boolean active) {
             this(active, 1, colors.white());
         }
 
-        /**@see #Outline(boolean, int, Object) **/
-        public Outline (int thickness, Object object) {
-            this(true, thickness, object);
+        /**@see #Outline(boolean, int, ColorProvider) **/
+        public Outline (int thickness, ColorProvider color_provider) {
+            this(true, thickness, color_provider);
         }
 
-        /**@see #Outline(boolean, int, Object) **/
+        /**@see #Outline(boolean, int, ColorProvider) **/
         public Outline (int thickness) { this(true, thickness, colors.white());}
 
-        /**@see #Outline(boolean, int, Object) **/
+        /**@see #Outline(boolean, int, ColorProvider) **/
+        public Outline (ColorProvider color_provider) { this(true, 1, color_provider);}
+
+        /**@see #Outline(boolean, int, ColorProvider) **/
         public Outline () {this(true, 1, colors.white());}
     }
 
@@ -875,14 +1117,13 @@ public class Bitmap {
          * @param pos_y The y-coordinate
          * @param size The size in pixel (diameter is size * 2)
          * @param thickness The thickness of the cross
-         * @param color_provider The color p
+         * @param color_provider The color_provider p
          * @param outline
          */
-        public void cross(int pos_x, int pos_y, int size, int thickness, Object color_provider, Outline outline){
+        public void cross(int pos_x, int pos_y, int size, int thickness, ColorProvider color_provider, Outline outline){
             Pattern[] lockedPatterns = setAutoPattern(pos_x - size, pos_x + size, pos_y - size, pos_y + size, color_provider, true);
-            if (outline != null) setAutoPattern(pos_x - size, pos_x + size, pos_y - size, pos_y + size, outline.color, true);
+            if (outline != null) setAutoPattern(pos_x - size, pos_x + size, pos_y - size, pos_y + size, outline.color_provider, true);
 
-            checkType(color_provider);
             thickness = thickness / 2;
             size = size / 2;
             fillArea(pos_x - size, pos_y - thickness, pos_x + size, pos_y + thickness, color_provider, outline);
@@ -892,7 +1133,7 @@ public class Bitmap {
         }
 
         // *** Overloads ***
-        public void cross(int pos_x, int pos_y, int size, int thickness, Object color) {
+        public void cross(int pos_x, int pos_y, int size, int thickness, ColorProvider color) {
             cross(pos_x, pos_y, size, thickness, color, new Outline(false));
         }
         public void cross(int pos_x, int pos_y, int size, int thickness, Outline outline) {
@@ -907,34 +1148,26 @@ public class Bitmap {
          * @param pos_x of the circle
          * @param pos_y of the circle
          * @param radius of the circle
-         * @param color_provider a color provider for the body, can be either a Pattern or a Color
+         * @param color_provider a color_provider provider for the body, can be either a Pattern or a Color
          * @param borderclip whether the circle should raise an exception if the accessed pixel is outside the canvas
-         * @param outline_color_provider a color provider for the border object, set to null if unwanted
+         * @param outline a border object, set to null if unwanted
          * @throws IllegalArgumentException when borderclip is set to false and the accessed pixel is outside the canvas
          */
-        public void circle(int pos_x, int pos_y, int radius, Object color_provider, boolean borderclip, Object outline_color_provider) {
-            checkType(color_provider); if (outline_color_provider != null) checkType(outline_color_provider);
+        public void circle(int pos_x, int pos_y, int radius, ColorProvider color_provider, boolean borderclip, Outline outline) {
 
             //Gradient auto
             setAutoPattern(pos_x-radius, pos_x+radius, pos_y-radius, pos_y+radius, color_provider, false);
-            if (outline_color_provider != null) setAutoPattern(pos_x-radius, pos_x+radius, pos_y-radius, pos_y+radius, outline_color_provider, false);
+            if (outline != null && outline.active) circle(pos_x, pos_y, radius+outline.thickness, outline.color_provider, borderclip);
+            // if (outline != null) setAutoPattern(pos_x-radius, pos_x+radius, pos_y-radius, pos_y+radius, outline, false);
 
             for (int y = pos_y-radius; y < pos_y+radius; y++) {
                 for (int x = pos_x-radius; x < pos_x+radius; x++) {
                     int equation = (int) (Math.pow(radius, 2) - (Math.pow(pos_x - x, 2) + Math.pow(pos_y-y, 2)));
-                    double border_factor = radius * 2 - radius / 4.0;
-                    if (outline_color_provider != null && ( equation + border_factor > 0 && equation + border_factor < border_factor || equation - border_factor < 0 && equation - border_factor > -border_factor ) ) {
-                        try {
-                            changePixel(x, y, outline_color_provider);
-                        } catch (IllegalArgumentException e) {
-                            if (borderclip) throw e;
-                        }
 
-                    }
-                    else if (equation > 0) {
+                    if (equation > 0) {
                         try {
                             changePixel(x, y, color_provider);
-                        } catch (IllegalArgumentException e) {
+                        } catch (Exceptions.PixelOutOfBoundsException e) {
                             if (borderclip) throw e;
                         }
                     }
@@ -943,14 +1176,14 @@ public class Bitmap {
         }
 
         // *** Overloads ***
-        public void circle(int pos_x, int pos_y, int radius, Object color_provider, Object outline_color_provider) {circle(pos_x, pos_y, radius, color_provider, false, outline_color_provider);}
-        public void circle(int pos_x, int pos_y, int radius, Object color_provider) {circle(pos_x, pos_y, radius, color_provider, null);}
-        public void circle(int pos_x, int pos_y, int radius, Object color_provider, boolean borderclip) {circle(pos_x, pos_y, radius, color_provider, borderclip, null);}
+        public void circle(int pos_x, int pos_y, int radius, ColorProvider color_provider, Outline outline) {circle(pos_x, pos_y, radius, color_provider, false, outline);}
+        public void circle(int pos_x, int pos_y, int radius, ColorProvider color_provider, ColorProvider outline_color) {circle(pos_x, pos_y, radius, color_provider, false, new Outline(outline_color));}
+        public void circle(int pos_x, int pos_y, int radius, ColorProvider color_provider) {circle(pos_x, pos_y, radius, color_provider, (Outline) null);}
+        public void circle(int pos_x, int pos_y, int radius, ColorProvider color_provider, boolean borderclip) {circle(pos_x, pos_y, radius, color_provider, borderclip, null);}
 
 
-        public void triangle(int pos_x, int pos_y, int size, Object color_provider, Object outline_color_provider) {
+        public void triangle(int pos_x, int pos_y, int size, ColorProvider color_provider, ColorProvider outline_color_provider) {
             System.out.println("NOT IMPLEMENTED");
-            checkType(color_provider); if (outline_color_provider != null) checkType(outline_color_provider);
             setAutoPattern(pos_x-size, pos_x+size, pos_y-size, pos_y+size, color_provider, false);
 
             for (int y = pos_y-size; y < pos_y+size; y++) {
@@ -985,36 +1218,40 @@ public class Bitmap {
 
     // *** Overloads ***
 
-    /**@see #fillArea(int, int, int, int, Object, Outline)  */
-    public void fillArea(int x_p1, int y_p1, int x_p2, int y_p2, Object color) {
-        fillArea(x_p1, y_p1, x_p2, y_p2, color, new Outline(false));
+    /**@see #fillArea(int, int, int, int, ColorProvider, Outline)  */
+    public void fillArea(int x_p1, int y_p1, int x_p2, int y_p2, ColorProvider color_provider) {
+        fillArea(x_p1, y_p1, x_p2, y_p2, color_provider, new Outline(false));
     }
 
     public void fillWin() {
         fillWin(colors.black());
     }
 
-    /**@see #lineH(int, int, int, Object, int) */
+    /**@see #lineH(int, int, int, ColorProvider, int) */
     public void lineH(int x_from, int x_to, int y_pos) {lineH(x_from, x_to, y_pos, colors.black(), 1);} 
-    /**@see #lineH(int, int, int, Object, int) */
+    /**@see #lineH(int, int, int, ColorProvider, int) */
     public void lineH(int x_from, int x_to, int y_pos, int thickness) {lineH(x_from, x_to, y_pos, colors.black(), thickness);}
-    /**@see #lineH(int, int, int, Object, int) */
-    public void lineH(int y_pos, Object color_provider) {lineH(1, canvas_width, y_pos, color_provider, 1);}
-    /**@see #lineH(int, int, int, Object, int) */
-    public void lineH(int y_pos, Object color_provider, int thickness) {lineH(1, canvas_width, y_pos, color_provider, thickness);}
-    /**@see #lineH(int, int, int, Object, int) */
+    /**@see #lineH(int, int, int, ColorProvider, int) */
+    public void lineH(int y_pos, ColorProvider color_provider) {lineH(1, canvas_width, y_pos, color_provider, 1);}
+    /**@see #lineH(int, int, int, ColorProvider, int) */
+    public void lineH(int y_pos, ColorProvider color_provider, int thickness) {lineH(1, canvas_width, y_pos, color_provider, thickness);}
+    /**@see #lineH(int, int, int, ColorProvider, int) */
     public void lineH(int y_pos) {lineH(y_pos, colors.black());}
 
-    /**@see #lineV(int, int, int, Object, int) */
+    /**@see #lineV(int, int, int, ColorProvider, int) */
     public void lineV(int y_from, int y_to, int x_pos) {lineV(y_from, y_to, x_pos, colors.black(), 1);}
-    /**@see #lineH(int, int, int, Object, int) */
+    /**@see #lineH(int, int, int, ColorProvider, int) */
     public void lineV(int y_from, int y_to, int x_pos, int thickness) {lineV(y_from, y_to, x_pos, colors.black(), thickness);}
-    /**@see #lineH(int, int, int, Object, int) */
-    public void lineV(int x_pos, Object color_provider) {lineV(1, canvas_height, x_pos, color_provider, 1);}
-    /**@see #lineH(int, int, int, Object, int) */
-    public void lineV(int x_pos, Object color_provider, int thickness) {lineV(1, canvas_height, x_pos, color_provider, thickness);}
-    /**@see #lineH(int, int, int, Object, int) */
+    /**@see #lineH(int, int, int, ColorProvider, int) */
+    public void lineV(int x_pos, ColorProvider color_provider) {lineV(1, canvas_height, x_pos, color_provider, 1);}
+    /**@see #lineH(int, int, int, ColorProvider, int) */
+    public void lineV(int x_pos, ColorProvider color_provider, int thickness) {lineV(1, canvas_height, x_pos, color_provider, thickness);}
+    /**@see #lineH(int, int, int, ColorProvider, int) */
     public void lineV(int x_pos) {lineV(x_pos, colors.black());}
 
+    // This class is only extended to unify method parameters as "ColorProvider"
+    public abstract static class ColorProvider { }
 
 }
+
+
