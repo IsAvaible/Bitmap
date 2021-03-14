@@ -100,9 +100,9 @@ public class Bitmap {
         }
 
         if (color_provider.getClass() == Color.class) {
-            canvas[canvas_height -y][x-1] = ((Color) color_provider).color;
+            canvas[canvas_height-y][x-1] = ((Color) color_provider).color;
         } else if (color_provider.getClass() == Pattern.class) {
-            canvas[canvas_height -y][x-1] = ((Pattern) color_provider).run(x, y).color;
+            canvas[canvas_height-y][x-1] = ((Pattern) color_provider).run(x, y).color;
         } else {
             throw new IllegalArgumentException("How did you even get here? color_provider can be only be a Pattern or a Color");
         }
@@ -282,9 +282,8 @@ public class Bitmap {
      * @throws IllegalArgumentException if the specified file is not in the ppm format, or if the write operation wasn't successful
      */
     public void render(String filename, int[][][] custom_win, boolean report_path) {
-        this.filename = filename;
         String format;
-        String full_filepath = System.getProperty("user.dir") + "/" + filename;;
+        String full_filepath =  filename.substring(0, 2).matches(".:") ? filename : System.getProperty("user.dir") + "/" + filename;
         try {
             format = filename.split("\\.")[1];
         } catch (ArrayIndexOutOfBoundsException e) {
@@ -356,6 +355,7 @@ public class Bitmap {
                 }
             }
             else {
+                render_obj.close();
                 throw new IllegalArgumentException(String.format("file format \"%s\" is not supported", format));
             }
 
@@ -562,6 +562,7 @@ public class Bitmap {
         boolean shiftPattern;
 
         Predicate<int[]> custom_function;
+        Function<int[], Integer> smoothed_function;
 
         int from;
         int to;
@@ -569,7 +570,7 @@ public class Bitmap {
 
         double opacity;
 
-        private Pattern (ColorProvider slot_1, ColorProvider slot_2, String pattern, boolean horizontal, boolean shiftPattern, int from, int to, boolean fastPattern, Predicate<int[]> custom_function, double opacity, boolean auto) {
+        private Pattern (ColorProvider slot_1, ColorProvider slot_2, String pattern, boolean horizontal, boolean shiftPattern, int from, int to, boolean fastPattern, Predicate<int[]> custom_function, double opacity, boolean auto, Function<int[], Integer> smoothed_function) {
             this.slot_1 = slot_1; this.slot_2 = slot_2;
 
             this.horizontal = horizontal; this.vertical = !horizontal;
@@ -579,6 +580,7 @@ public class Bitmap {
             this.auto = auto;
 
             this.custom_function = custom_function;
+            this.smoothed_function = smoothed_function;
             this.opacity = opacity;
 
             if (fastPattern) pattern = evaluateFastPattern(pattern);
@@ -593,7 +595,7 @@ public class Bitmap {
          * @return the color_provider that is returned by the recursive call
          */
         public Color run_slot_1(int x, int y) {
-            return slot_1.getClass() == Color.class ? (Color) slot_1 : ((Pattern) slot_1).run(x, y);
+            return slot_1.getClass() == Color.class ? (Color) slot_1 : ((Pattern) slot_1).run(horizontal ? y : x, horizontal ? x : y);
         }
 
         /** Calls the second slot recursively or returns the color_provider directly
@@ -602,7 +604,7 @@ public class Bitmap {
          * @return the color_provider that is returned by the recursive call
          */
         public Color run_slot_2(int x, int y) {
-            return slot_2.getClass() == Color.class ? (Color) slot_2 : ((Pattern) slot_2).run(x, y);
+            return slot_2.getClass() == Color.class ? (Color) slot_2 : ((Pattern) slot_2).run(horizontal ? y : x, horizontal ? x : y);
         }
 
         public void setSlot_1(ColorProvider slot_1) { this.slot_1 = slot_1; }
@@ -616,7 +618,7 @@ public class Bitmap {
          * @return a Color
          */
         public Color run(int x, int y) {
-            if (shiftPattern) x++; y++;
+            if (shiftPattern) {x++; y++;}
             if (horizontal) {int temp = x; x = y; y = temp;}
             switch (pattern) {
                 // Main patterns
@@ -625,7 +627,7 @@ public class Bitmap {
                 case "opacity":
                     return colors.mix(
                             run_slot_1(x, y),
-                            new Color(vertical ? canvas[canvas_height-y+1][x-1] : canvas[canvas_height-x+1][y-1]),
+                            new Color(vertical ? (canvas[canvas_height-y][x-1]) : (canvas[canvas_height-x][y-1])),
                             opacity);
                 case "grid":
                     return x * y % 2 == 0 ? run_slot_1(x, y) : run_slot_2(x, y);
@@ -661,6 +663,17 @@ public class Bitmap {
                     return  Math.sin((double) x/y) > 0.05 ? run_slot_1(x, y) : run_slot_2(x, y);
                 case "custom":
                     return custom_function.test(new int[]{x, y, from, to}) ? run_slot_1(x, y) : run_slot_2(x, y);
+                case "smoothed_function":
+                    int finalX = x;
+                    int finalY = y;
+                    Predicate<int[]> smoothed = arg -> {
+                        int this_y = smoothed_function.apply(new int[]{finalX, finalY, from, to});
+                        int next_y = smoothed_function.apply(new int[]{finalX+1, finalY, from, to});
+                        int last_y = smoothed_function.apply(new int[]{finalX-1, finalY, from, to});
+
+                        return this_y == arg[1] || arg[1] > last_y && arg[1] < next_y || arg[1] < last_y && arg[1] > next_y;
+                    };
+                    return smoothed.test(new int[]{x, y, from, to}) ? run_slot_1(x, y) : run_slot_2(x, y);
             }
 
             throw new IllegalArgumentException(pattern + " is a unknown pattern");
@@ -670,7 +683,7 @@ public class Bitmap {
          * @param pattern a lowercase String containing the pattern name
          */
         public void validatePattern(String pattern) {
-            if (!Set.of("grid", "checkerboard", "stripes", "gradient", "wave", "cells", "bigcells", "dotgrid", "biggrid", "hugegrid", "superhugegrid", "flowergrid", "space", "dotlines", "custom", "opacity", "normal").contains(pattern)) {
+            if (!Set.of("grid", "checkerboard", "stripes", "gradient", "wave", "cells", "bigcells", "dotgrid", "biggrid", "hugegrid", "superhugegrid", "flowergrid", "space", "dotlines", "custom", "opacity", "normal", "smoothed_function").contains(pattern)) {
                 throw new IllegalArgumentException(pattern + " is a unknown pattern");
             }
             if (from > to) throw new IllegalArgumentException("from must be smaller than to");
@@ -730,12 +743,16 @@ public class Bitmap {
             return pattern;
         }
 
+        private Pattern(ColorProvider slot_1, ColorProvider slot_2, String pattern, boolean horizontal, boolean shiftPattern, int from, int to, boolean fastPattern, Predicate<int[]> custom_function, double opacity, boolean auto) {
+            this(slot_1, slot_2, pattern, horizontal, shiftPattern, from, to, fastPattern, custom_function, opacity, auto, null);
+        }
+
         private Pattern (ColorProvider slot_1, ColorProvider slot_2, String pattern, boolean horizontal, boolean shiftPattern, int from, int to, boolean fastPattern, Predicate<int[]> custom_function, double opacity) {
-            this(slot_1, slot_2, pattern, horizontal, shiftPattern, from, to, fastPattern, custom_function, 0.0, false);
+            this(slot_1, slot_2, pattern, horizontal, shiftPattern, from, to, fastPattern, custom_function, opacity, false);
         }
 
         private Pattern (ColorProvider slot_1, ColorProvider slot_2, String pattern, boolean horizontal, boolean shiftPattern, int from, int to, boolean fastPattern, Predicate<int[]> custom_function) {
-            this(slot_1, slot_2, pattern, horizontal, shiftPattern, from, to, fastPattern, custom_function, 0.0);
+            this(slot_1, slot_2, pattern, horizontal, shiftPattern, from, to, fastPattern, custom_function, 1.0);
         }
 
         private Pattern (ColorProvider slot_1, ColorProvider slot_2, String pattern, boolean horizontal, boolean shiftPattern, int from, int to, boolean fastPattern) {
@@ -757,7 +774,7 @@ public class Bitmap {
          * @param opacity The opacity of the color_provider provider (1.0 = cover, 0.0 = invisible)
          */
         public Pattern(ColorProvider slot_1, double opacity) {
-            this(slot_1, colors.white(), "opacity", true, false, 0, 0, false, null, opacity);
+            this(slot_1, colors.white(), "opacity", true, false, 0, 0, false, null, opacity, false);
         }
 
         /** Custom pattern
@@ -808,7 +825,7 @@ public class Bitmap {
         }
 
         public Pattern(PatternBuilder patternBuilder) {
-            this(patternBuilder.slot_1, patternBuilder.slot_2, patternBuilder.pattern, patternBuilder.horizontal, patternBuilder.shiftPattern, patternBuilder.from, patternBuilder.to, patternBuilder.isFastPattern, patternBuilder.custom_function, patternBuilder.opacity, patternBuilder.auto);
+            this(patternBuilder.slot_1, patternBuilder.slot_2, patternBuilder.pattern, patternBuilder.horizontal, patternBuilder.shiftPattern, patternBuilder.from, patternBuilder.to, patternBuilder.isFastPattern, patternBuilder.custom_function, patternBuilder.opacity, patternBuilder.auto, patternBuilder.smoothed_function);
         }
 
     }
@@ -822,6 +839,7 @@ public class Bitmap {
         boolean shiftPattern = false;
 
         Predicate<int[]> custom_function;
+        Function<int[], Integer> smoothed_function;
 
         int from = 0;
         int to = 0;
@@ -840,10 +858,16 @@ public class Bitmap {
             this(slot_1, colors.white(), pattern);
         }
 
-        public PatternBuilder withHorizontal(boolean horizontal) {
-            this.horizontal = horizontal;
+        public PatternBuilder withHorizontal() {
+            this.horizontal = true;
             return this;
         }
+
+        public PatternBuilder withVertical() {
+            this.horizontal = false;
+            return this;
+        }
+
         public PatternBuilder withShiftPattern(boolean shiftPattern) {
             this.shiftPattern = shiftPattern;
             return this;
@@ -855,6 +879,10 @@ public class Bitmap {
         }
         public PatternBuilder withCustomFunction(Predicate<int[]> custom_function) {
             this.custom_function = custom_function;
+            return this;
+        }
+        public PatternBuilder withSmoothedFunction(Function<int[], Integer> smoothed_function) {
+            this.smoothed_function = smoothed_function;
             return this;
         }
         public PatternBuilder withOpacity(double opacity) {
@@ -1040,10 +1068,21 @@ public class Bitmap {
      */
     public class PatternBuilders {
 
-        public PatternBuilder opacity(ColorProvider slot_1) { return new PatternBuilder(slot_1, "opacity"); }
+        public PatternBuilder opacity(ColorProvider slot_1, double opacity) { return new PatternBuilder(slot_1, "opacity").withOpacity(opacity); }
+        public PatternBuilder opacity(ColorProvider slot_1) { return opacity(slot_1, 0.5); }
         public PatternBuilder gradient(ColorProvider slot_1, ColorProvider slot_2) { return new PatternBuilder(slot_1, slot_2, "gradient"); }
-        public PatternBuilder custom(ColorProvider slot_1, ColorProvider slot_2, Predicate<int[]> custom_function) { return new PatternBuilder(slot_1, slot_2, "custom").withCustomFunction(custom_function); }
+
         public PatternBuilder fastPattern(ColorProvider slot_1, ColorProvider slot_2, String fast_pattern) {return new PatternBuilder(slot_1, slot_2, fast_pattern).withIsFastPattern(true); }
+
+        public PatternBuilder custom(ColorProvider slot_1, ColorProvider slot_2, Predicate<int[]> custom_function) { return new PatternBuilder(slot_1, slot_2, "custom").withCustomFunction(custom_function); }
+
+        /**
+         * @param function_cp The color_provider of the function (foreground)
+         * @param background_cp The color_provider of the background
+         * @param smoothed_function A Function that accepts a array with up to 4 Values. [x, y, from, to]
+         * @return A PatterBuilder, build it with .build()
+         */
+        public PatternBuilder smoothedFunction(ColorProvider function_cp, ColorProvider background_cp, Function<int[], Integer> smoothed_function) { return new PatternBuilder(function_cp, background_cp, "smoothed_function").withSmoothedFunction(smoothed_function).withVertical(); }
 
         public PatternBuilder gridVariants(ColorProvider slot_1, ColorProvider slot_2, int factor) { return new PatternBuilder(slot_1, slot_2, "custom").withCustomFunction(arr ->  arr[0] * arr[1] % (factor) == 0); }
         public PatternBuilder cellsVariants(ColorProvider slot_1, ColorProvider slot_2, int factor) { return new PatternBuilder(slot_1, slot_2, "custom").withCustomFunction(arr ->  (int) (Math.PI * arr[0] * arr[1]) % (factor) == 0); }
