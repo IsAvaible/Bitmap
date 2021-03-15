@@ -14,11 +14,11 @@ public class Overview {
         Bitmap bitmap = new Bitmap(800, 800);
         // Saving the colors subclass as a own var to make it easier accessible
         Bitmap.Colors colors = bitmap.colors;
-        // Filling the whole window with a single color
+        // Filling the whole window with a single color_provider
         bitmap.fillWin(colors.white());
-        // Filling a Area with a single color
+        // Filling a Area with a single color_provider
         bitmap.fillArea(100, 100, 700, 700, colors.white());
-        // Creating a custom color
+        // Creating a custom color_provider
         Bitmap.Color my_color = bitmap.new Color(30, 20, 100, 0.7);
 
         // Creating a gradient (long way). From and to can be freely selected, but from must be smaller than to. This can be used to select only parts of a gradient, or to limit the gradient to a specified area.
@@ -28,7 +28,7 @@ public class Overview {
         String fast_pattern = "gradientV=100-700";
         // By using this simple fast_pattern we can now declare a new pattern with colors.merge() or bitmap.new Pattern()
         Bitmap.Pattern my_faster_gradient = colors.merge(colors.green(), colors.blue(), fast_pattern);
-        // Adding a border with a specified thickness and the gradient as color
+        // Adding a border with a specified thickness and the gradient as color_provider
         bitmap.border(100, 100, 700, 700, 4, my_faster_gradient);
         // Note: Borders will always be drawn outside the specified area, which means that you need to consider the remaining space when adding a outline
 
@@ -41,10 +41,10 @@ public class Overview {
         // Different predefined shapes are available through the shapes subclass
         // Here, a circle with a radius of 30 at the center of the screen is created
         bitmap.shapes.circle(bitmap.canvas_width /2, bitmap.canvas_height /2, 30,
-                // Body color | It's also possible to diffuse between to gradients
+                // Body color_provider | It's also possible to diffuse between to gradients
                 colors.merge(colors.merge(colors.green(),  colors.blue(), "gradientV=auto"), colors.merge(colors.green(),  colors.white(), "gradientV=auto"), "gradientV=auto"),
-                // Outline color | The alpha can only darken the color. To brighten a color one can use colors.mix with a bright color like white
-                colors.merge(colors.mix(colors.green(), colors.white(), 0.5), colors.white(), "gradientH=370-430"));
+                // Outline color_provider | The alpha can only darken the color_provider. To brighten a color_provider one can use colors.mix with a bright color_provider like white
+                bitmap.new Outline(1, colors.merge(colors.mix(colors.green(), colors.white(), 0.5), colors.white(), "gradientH=370-430")));
         // Adding a cross
         bitmap.shapes.cross(400, 400, 100, 6,
                 colors.merge(
@@ -62,7 +62,7 @@ public class Overview {
         Predicate<int[]> normal_parabola = arg -> {
             // If using only the normal_parabola_function and checking if its equal to y, the normal parabola will be
             // a dotted line (doc-files/dotted-parabola.png ). Therefore, we calculate the last and the
-            // next y, to color each pixel "between" the two.
+            // next y, to color_provider each pixel "between" the two.
             Function<Integer, Integer> normal_parabola_function = shift -> (int) ((Math.pow((arg[0]+shift - arg[2]), 2) * 0.1 + arg[3]) );
             //|........Function declaration.....................||.param.||........................(x - a)^2...........||comp. 0.1||..+c.||
             int this_y = normal_parabola_function.apply(0);
@@ -81,9 +81,36 @@ public class Overview {
         // bitmap.fillArea(100, 100, 700, 700, normal_parabola_pattern);
 
         // Render must be called by the user to prevent unnecessary code executions, it's essentially saving the object to the file
-        bitmap.render();
+        bitmap.render("bitmap.ppm");
 
         // To view .ppm files without compression and instantly refresh them on change, I recommend https://imageglass.org/
+    }
+
+    public static void how_to_create_patterns() {
+        // Because I started this project with no concept whatsoever, my
+        // initial approach of using overloads to create patterns has
+        // become unmaintainable.
+        // I now added a class PatternBuilder to manage optional parameters
+        // more easily. In the following I will show all ways to create a pattern
+        // up to this day.
+
+        // The standard steps to initialize the new canvas
+        Bitmap bitmap = new Bitmap(800, 800);
+        Bitmap.Colors colors = bitmap.colors;
+        // Storage for our example
+        Bitmap.Pattern example_pattern;
+
+        // First way: colors.merge()
+        // This is essentially just a wrapper for fast patterns.
+        // Whilst this is the fastest approach, it's not as maintainable,
+        // because fast patterns aren't as read intuitive
+        example_pattern = colors.merge(colors.blue(), colors.white(), "customV=auto");
+
+        // Second (new) way: PatternBuilders
+        example_pattern = bitmap.patternBuilders.gradient(colors.blue(), colors.white()).withVertical().build();
+
+        // Third way: Interacting directly with the Pattern class (overload hell incoming)
+        example_pattern = bitmap.new Pattern(colors.blue(), colors.white(),"gradient", false, 0, 0, true); // (Disgusting and not understandable without a good IDE)
     }
 
     public static void more_examples() {
@@ -107,7 +134,7 @@ public class Overview {
             bitmap.shapes.circle(
                     x, y, radius,
                     colors.merge(colors.random(true), colors.random(true),
-                            String.format("gradient%s=%s-%s", hor ? 'H' : 'V', 350, 450))
+                            String.format("gradient%s=auto", hor ? 'H' : 'V'))
             );
         }
         render_delayed(bitmap);
@@ -118,8 +145,7 @@ public class Overview {
         bitmap.fillArea(100, 100, 700, 700, colors.merge(colors.merge(colors.white(), colors.black(), "checkerboard"), colors.black(), "hugegrid"));
         render_delayed(bitmap);
         // Cells like pattern
-        bitmap.shapes.circle(400, 400, 200, colors.merge(colors.merge(colors.white(), colors.light_blue(), "flowergrid"), colors.black(), "biggrid"),
-                colors.white());
+        bitmap.shapes.circle(400, 400, 200, colors.merge(colors.merge(colors.white(), colors.light_blue(), "flowergrid"), colors.black(), "biggrid"), colors.white());
         render_delayed(bitmap);
         // A Custom function
         Predicate<int[]> custom_fun = arr -> arr[0] * arr[1] % 16 == 0; // Body Color

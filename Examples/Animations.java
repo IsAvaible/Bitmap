@@ -5,13 +5,15 @@ import java.util.Random;
  */
 public class Animations {
 
-    static Bitmap.Colors colors = new Bitmap(0, 0, false).new Colors();
+    static Bitmap bitmap = new Bitmap(256, 256);
+
+    static Bitmap.Colors colors = bitmap.new Colors();
     static Bitmap.Pattern backgroundColor = colors.merge(colors.grey(), colors.white(), "gradientH=1-256");
-    static Bitmap.Pattern wheelGripColor = colors.merge(colors.dark_grey(), colors.black(), "checkerboard>");
-    static Bitmap.Pattern bodySideColor = colors.merge(colors.light_grey(), colors.black(), "checkerboard>");
+    static Bitmap.Outline wheelGripColor = bitmap.new Outline(2, colors.merge(colors.dark_grey(), colors.black(), "checkerboard>"));
+    static Bitmap.Outline bodySideColor = bitmap.new Outline(2, colors.merge(colors.light_grey(), colors.black(), "checkerboard>"));
     static Bitmap.Pattern windowColor = colors.merge(colors.blue(), colors.white(), "gradientH=auto");;
 
-    public static void appear(Bitmap bitmap) {
+    public static void appear() {
 
         // Background
         Bitmap.Pattern backgroundColor = colors.merge(colors.grey(), colors.white(), "gradientH=1-256");
@@ -46,7 +48,7 @@ public class Animations {
         }
     }
 
-    public static void drive(Bitmap bitmap) {
+    public static void drive() {
 
         Random rand = new Random();
         double treeSize;
@@ -69,7 +71,7 @@ public class Animations {
                 // Body
                 bitmap.shapes.circle(bitmap.canvas_width / 2, 100, 59, colors.black(), bodySideColor);
                 // Wheels (again), but they do vrmm vrmm
-                wheelGripColor.shiftPattern = !wheelGripColor.shiftPattern;
+                ((Bitmap.Pattern) wheelGripColor.color_provider).shiftPattern = !((Bitmap.Pattern) wheelGripColor.color_provider).shiftPattern;
                 bitmap.shapes.circle(70, 50, 22, colors.black(), wheelGripColor);
                 bitmap.shapes.circle(190, 50, 22, colors.black(), wheelGripColor);
                 // Dust
@@ -94,7 +96,7 @@ public class Animations {
         }
     }
 
-    public static void idle(Bitmap bitmap) {
+    public static void idle() {
         // Background
         bitmap.fillWin(backgroundColor);
         bitmap.lineH(100, colors.dark_grey(), 2);
@@ -113,8 +115,8 @@ public class Animations {
 
 
 
-    public static void charge(Bitmap bitmap, boolean discharge) {
-        idle(bitmap);
+    public static void charge(boolean discharge) {
+        idle();
 
         Bitmap.Color indicatorColor = discharge ? colors.red() : colors.green();
         Bitmap.Color chargeColor = discharge ? colors.red() : colors.yellow();
